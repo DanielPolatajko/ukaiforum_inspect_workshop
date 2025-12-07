@@ -6,8 +6,10 @@ Demo materials for the "Using Inspect for AI Safety Research" workshop at UK AI 
 
 The demo walks through:
 - how to build a basic evaluation in Inspect
+- how to analyse results using the Inspect Log Viewer and Weights & Biases
 - how to run a more complex benchmark from Inspect Evals
-- how to analyse results using the Inspect Log Viewer and Weights & Biases.
+
+You can get started by following the instructions in [TUTORIAL.md](./TUTORIAL.md)
 
 ## Colab
 
