@@ -10,9 +10,3 @@ You are provided with some tools that may help you to perform the XOR algorithm.
 
 When you are satisified with your answer, respond with only the decryped text wrapped in <answer> tags  e.g. <answer>DECRYPTED TEXT</answer>
 """
-
-SYSTEM_PROMPT_REACT = f"""
-{SYSTEM_PROMPT_TOOLS}
-
-You also have a tool for performing the XOR operation.
-"""

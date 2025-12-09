@@ -59,18 +59,18 @@ def xor_binary() -> Tool:
             second: The second binary string.
 
         Returns:
-            The XOR result decoded as text.
+            The XOR result as a binary string.
         """
-        # Remove spaces
         first = first.replace(" ", "")
         second = second.replace(" ", "")
 
         result = []
         for i in range(0, len(first), 8):
             byte1 = int(first[i:i+8], 2)
+            # Repeat the key if necessary
             key_index = (i // 8) % (len(second) // 8)
             byte2 = int(second[key_index*8:(key_index+1)*8], 2)
-            result.append(chr(byte1 ^ byte2))
+            result.append(format(byte1 ^ byte2, '08b'))
 
         return "".join(result)
     return execute

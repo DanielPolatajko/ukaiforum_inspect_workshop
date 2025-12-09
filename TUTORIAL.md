@@ -37,7 +37,6 @@ This tutorial relies on the following Python dependencies:
 - [Inspect Evals](https://github.com/UKGovernmentBEIS/inspect_evals): A repository of popular safety benchmarks implemented in Inspect
 - [Inspect WandB](https://github.com/DanielPolatajko/inspect_wandb): An integration between Inspect and Weights & Biases for experiment tracking and results analysis
 - [OpenAI Client Library](https://platform.openai.com/docs/api-reference/introduction?lang=python)
-- [Anthropic Client Library](https://platform.claude.com/docs/en/api/client-sdks)
 
 You can install these dependencies by running:
 ```bash
@@ -56,7 +55,6 @@ Create a file at the project root called `.env` and add the following lines to i
 
 ```txt
 OPENAI_API_KEY=<YOUR_KEY_HERE>
-ANTHROPIC_API_KEY=<YOUR_KEY_HERE>
 INSPECT_EVAL_MODEL="openai/gpt-4o-mini"
 ```
 
@@ -80,7 +78,7 @@ Inspect is an LLM evals framework, specifically designed to facilitate AI safety
 
 The Inspect framework structures evals using concepts such as _Tasks, Solvers, Scorers, Agents, Datasets_, and _Tools_. In this section, we explore each of these concepts in turn, and learn how to compose them to build a simple question-and-answer evaluation. We will do so by __building a safety-motivated LLM evaluation from scratch__.
 
-First, __create a new Python package called `tutorial`__
+First, __create a new Python package called `tutorial`__ and run `uv pip install -e .`
 
 ## Threat Modelling
 
@@ -117,8 +115,7 @@ Every evaluation starts with a dataset. The __dataset is composed of samples whi
 For this simple evaluation, we begin by creating a AES encryption key, and using this to encrypt 3 short messages. Add a new file at `tutorial/dataset.py`, and add the following:
 
 ```python
-import json
-from inspect_ai.dataset import Sample, MemoryDataset, json_dataset
+from inspect_ai.dataset import Sample, MemoryDataset
 
 
 SECRET_KEY = "secret text"
@@ -172,7 +169,7 @@ Inspect makes use of Python decorators for defining new objects to be used in an
 from inspect_ai import task, Task
 from inspect_ai.solver import generate
 from inspect_ai.scorer import match
-from ukaiforum_inspect.dataset import decryption_dataset
+from tutorial.dataset import decryption_dataset
 
 @task
 def simple_decryption_task():
@@ -242,7 +239,7 @@ In general, a solver in Inspect refers to the way in which the model is scaffold
 
 In our example, we can improve the model's output quite simply by adding a system prompt. Inspect allows us to compose multiple solvers to create an top-level solver for the task: here we have composed `system_message` and `generate`.
 
-- Create a new file at `tutorial/prompts/system.py`
+- Create a new file at `tutorial/system_prompt.py`
 - Add the following:
 
 ```python
@@ -261,8 +258,8 @@ Then:
 from inspect_ai import task, Task
 from inspect_ai.solver import generate, system_message
 from inspect_ai.scorer import match
-from .dataset import decryption_dataset
-from .prompts.system import SYSTEM_PROMPT
+from tutorial.dataset import decryption_dataset
+from tutorial.system_prompt import SYSTEM_PROMPT
 
 @task
 def decryption_task_with_chained_solver():
@@ -284,9 +281,19 @@ inspect eval tutorial/chained_solver_task.py
 
 Once again, we can view the results by clicking the Weave link produced in the terminal output.
 
+This time, by inspecting the samples, we can see that the model made a guess at the answer rather than describing a possible algorithm. Often, the model guesses "Hello, World", which is a reasonable guess that is close to (or sometimes exactly matches) our first label. If we were going to productionise this eval, we would probably want to remove this sample and replace it with something the model cannot game.
+
+### Switching Models
+
+After observing that `gpt-4o-mini` can't solve these samples, we might reason that it's just not a strong enough model. Inspect makes it quite easy to run evals across a very wide variety of models. For example, we could run:
+
+```bash
+inspect eval tutorial/chained_solver_task.py --model openai/gpt-5
+```
+
 ### Custom Solver and Tools
 
-We still haven't seen any evidence that the model can successfully do XOR decryption without tools. But what if we provide the model with some simple tools? Maybe the model will be able to perform decyption more easily if it can convert the hexadecimal string and the plaintext secret key into binary. Let's write some tools to let it do so:
+We still haven't seen any evidence that `gpt-4o-mini` can successfully do XOR decryption without tools. But what if we provide the model with some simple tools? Maybe the model will be able to perform decyption more easily if it can convert the hexadecimal string and the plaintext secret key into binary. Let's write some tools to let it do so:
 
 - Create a new file called `tutorial/tools.py`
 - Add the following:
@@ -367,19 +374,18 @@ def agentic_solver():
         model = get_model()
 
         for _ in range(max_iterations):
-            state = await model.generate(state.messages, tools=state.tools)
+            state.output = await model.generate(state.messages, tools=state.tools)
 
             if state.output.message.tool_calls:
                 tool_messages, output = await execute_tools(
-                    state.output.message,
+                    state.messages,
                     state.tools
                 )
 
                 state.messages.extend(tool_messages)
 
-                state.output = output
-            else:
-                break
+                if output is not None:
+                    state.output = output
 
         return state
 
@@ -388,7 +394,7 @@ def agentic_solver():
 
 This custom solver implements a basic agentic loop: generate a response from the model, and if the model requests tool calls, evaluate those tool calls and add the result to the context. We can run this agentic solve by doing the following:
 
-- Add the following to `tutorial/prompts/system.py`:
+- Add the following to `tutorial/system_prompt.py`:
 
 ```python 
 SYSTEM_PROMPT_TOOLS = f"""
@@ -400,17 +406,17 @@ When you are satisified with your answer, respond with only the decryped text wr
 """
 ```
  
-- Create a new file called `tutorial/tools_solver.py`
+- Create a new file called `tutorial/tools_task.py`
 - Add the following:
 
 ```python
 from inspect_ai import task, Task
-from .dataset import decryption_dataset
+from tutorial.dataset import decryption_dataset
 from inspect_ai.scorer import match
-from .tools import str_to_binary, hex_to_binary, binary_decoding
-from .solver import agentic_solver
+from tutorial.tools import str_to_binary, hex_to_binary, binary_decoding
+from tutorial.solver import agentic_solver
 from inspect_ai.solver import system_message, use_tools
-from .prompts.system import SYSTEM_PROMPT_TOOLS
+from tutorial.system_prompt import SYSTEM_PROMPT_TOOLS
 
 @task
 def decryption_task_with_tools():
@@ -446,7 +452,7 @@ Add the following to `tutorial/tools.py`:
 def xor_binary() -> Tool:
     async def execute(first: str, second: str) -> str:
         """
-        Given two binary strings, returns the XOR of the two binary numbers represented by the strings.
+        Given two binary strings, XORs them byte-by-byte and returns the decoded text.
         If the strings are different lengths, the shorter one repeats to match the longer one.
 
         Args:
@@ -473,38 +479,32 @@ def xor_binary() -> Tool:
 
 With this extra tool, we can now use the built-in `react` agent from Inspect to scaffold the LLM according to the [ReAct](https://arxiv.org/abs/2210.03629) agent specification. This scaffolding encourages the agent to reason about possible actions, and then act in a loop to complete the task.
 
-- Add the following to `tutorial/prompts/system.py`:
-
-```python
-SYSTEM_PROMPT_REACT = f"""
-{SYSTEM_PROMPT_TOOLS}
-
-You also have a tool for performing the XOR operation.
-"""
-```
-
-- Create a new file at `tutorial/agent_task.py`
+- Create a new file at `tutorial/react_task.py`
 - Add the following:
 
 ```python
 from inspect_ai import task, Task
 from inspect_ai.agent import react
-from .dataset import decryption_dataset
+from tutorial.dataset import decryption_dataset
 from inspect_ai.scorer import match
 from inspect_ai.solver import system_message
-from .tools import str_to_binary, hex_to_binary, binary_decoding, xor_binary
-from .prompts.system import SYSTEM_PROMPT_REACT
+from tutorial.tools import str_to_binary, hex_to_binary, binary_decoding, xor_binary
+from tutorial.system_prompt import SYSTEM_PROMPT_TOOLS
 
 @task
 def react_task():
   return Task(
       dataset=decryption_dataset,
       solver=[
-          system_message(SYSTEM_PROMPT_REACT),
+          system_message(SYSTEM_PROMPT_TOOLS),
           react(tools=[str_to_binary(), hex_to_binary(), binary_decoding(), xor_binary()]),
       ],
       scorer=match(),
   )
+```
+
+```bash
+inspect eval react_task.py
 ```
 
 ## 1d. Scorers
@@ -534,18 +534,19 @@ def answer_scorer() -> Scorer:
 
 ```python
 from inspect_ai import task, Task
-from .scorer import answer_scorer
-from .dataset import decryption_dataset
-from .tools import str_to_binary, hex_to_binary, binary_decoding, xor_binary
-from .prompts.system import SYSTEM_PROMPT_REACT
-from inspect_ai.solver import system_message, react
+from tutorial.scorer import answer_scorer
+from tutorial.dataset import decryption_dataset
+from tutorial.tools import str_to_binary, hex_to_binary, binary_decoding, xor_binary
+from tutorial.system_prompt import SYSTEM_PROMPT_TOOLS
+from inspect_ai.solver import system_message
+from inspect_ai.agent import react
 
 @task
 def scorer_task():
     return Task(
         dataset=decryption_dataset,
         solver=[
-            system_message(SYSTEM_PROMPT_REACT),
+            system_message(SYSTEM_PROMPT_TOOLS),
             react(tools=[str_to_binary(), hex_to_binary(), binary_decoding(), xor_binary()]),
         ],
         scorer=answer_scorer(),
@@ -553,6 +554,10 @@ def scorer_task():
 ```
 
 Inspect scorers make it easy to design much more complex custom scorers. One common use case is to have LLM-as-a-judge scorers, where an LLM judges the solver response against a rubric.
+
+```bash
+inspect eval tutorial/scorer_task.py
+```
 
 # 2. Inspect Evals
 
@@ -563,7 +568,7 @@ In this section, we will run a few samples from an eval in Inspect Evals, and ch
 Run:
 
 ```bash
-inspect eval-set inspect_evals/agentic_misalignment --log-dir inspect-evals-tutorial --epochs 3
+inspect eval-set inspect_evals/agentic_misalignment --log-dir inspect-evals-tutorial --epochs 3 -T grader_model=openai/gpt-5
 ```
 
 and click the Weave link to view the results in Weights & Biases.

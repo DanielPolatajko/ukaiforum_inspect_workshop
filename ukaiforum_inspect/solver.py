@@ -18,19 +18,19 @@ def agentic_solver():
         model = get_model()
 
         for _ in range(max_iterations):
-            state = await model.generate(state.messages, tools=state.tools)
+            state.output = await model.generate(state.messages, tools=state.tools)
 
             if state.output.message.tool_calls:
                 tool_messages, output = await execute_tools(
-                    state.output.message,
+                    state.messages,
                     state.tools
                 )
 
                 state.messages.extend(tool_messages)
 
-                state.output = output
-            else:
-                break
+                if output is not None:
+                    state.output = output
+                
 
         return state
 
