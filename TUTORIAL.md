@@ -572,3 +572,9 @@ inspect eval-set inspect_evals/agentic_misalignment --log-dir inspect-evals-tuto
 ```
 
 and click the Weave link to view the results in Weights & Biases.
+
+# Conclusion
+
+We've covered Inspect Tasks, how they can be built from Datasets, Solver and Scorers, as well as how to utilise Agent and Tools. We also covered some methods for viewing Inspect results and log files, and how to run popular safety benchmarks from Inspect Evals.
+
+Thanks for working through the tutorial - if you have any feedback, I'd love to hear it, you can email me at danielpolatajko@gmail.com.

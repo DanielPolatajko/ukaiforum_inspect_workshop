@@ -2,6 +2,8 @@
 
 Demo materials for the "Using Inspect for AI Safety Research" workshop at UK AI Forum
 
+This workshop was presented by me ([Daniel Polatajko](https://polatajko.com)) in my capacity the author and maintainer of [Inspect WandB](https://github.com/DanielPolatajko/inspect_wandb), an open-source integration between Inspect and Weights & Biases. Please check that project out if you're using Inspect - I'd love to hear your feedback, and give us a Github star if you're feeling generous!
+
 ## Structure
 
 The demo walks through:
